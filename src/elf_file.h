@@ -45,11 +45,6 @@ class ElfFile {
   // |flag| is true to pad .rel.dyn or .rela.dyn, false to shrink it.
   inline void SetPadding(bool flag) { is_padding_relocations_ = flag; }
 
-  // Transfer relative relocations from .rel.dyn or .rela.dyn to a packed
-  // representation in .android.rel.dyn or .android.rela.dyn.  Returns true
-  // on success.
-  bool PackRelocations();
-
   // Transfer relative relocations from a packed representation in
   // .android.rel.dyn or .android.rela.dyn to .rel.dyn or .rela.dyn.  Returns
   // true on success.
@@ -64,10 +59,6 @@ class ElfFile {
   // be open for read/write.  Returns true on successful ELF file load.
   // |fd| is an open file descriptor for the shared object.
   bool Load();
-
-  // Templated packer, helper for PackRelocations().  Rel type is one of
-  // ELF::Rel or ELF::Rela.
-  bool PackTypedRelocations(std::vector<typename ELF::Rela>* relocations);
 
   // Templated unpacker, helper for UnpackRelocations().  Rel type is one of
   // ELF::Rel or ELF::Rela.

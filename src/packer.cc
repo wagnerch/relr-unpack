@@ -7,38 +7,9 @@
 #include <vector>
 
 #include "debug.h"
-#include "delta_encoder.h"
 #include "elf_traits.h"
-#include "sleb128.h"
 
 namespace relocation_packer {
-
-// Pack relocations into a group encoded packed representation.
-template <typename ELF>
-void RelocationPacker<ELF>::PackRelocations(const std::vector<typename ELF::Rela>& relocations,
-                                            std::vector<uint8_t>* packed) {
-  // Run-length encode.
-  std::vector<typename ELF::Addr> packed_words;
-  RelocationDeltaCodec<ELF> codec;
-  codec.Encode(relocations, &packed_words);
-
-  // If insufficient data do nothing.
-  if (packed_words.empty())
-    return;
-
-  Sleb128Encoder<typename ELF::Addr> sleb128_encoder;
-
-  std::vector<uint8_t> sleb128_packed;
-
-  sleb128_encoder.EnqueueAll(packed_words);
-  sleb128_encoder.GetEncoding(&sleb128_packed);
-
-  packed->push_back('A');
-  packed->push_back('P');
-  packed->push_back('S');
-  packed->push_back('2');
-  packed->insert(packed->end(), sleb128_packed.begin(), sleb128_packed.end());
-}
 
 // Unpack relative relocations from a run-length encoded packed
 // representation.
@@ -53,12 +24,6 @@ void RelocationPacker<ELF>::UnpackRelocations(
         packed[1] == 'P' &&
         packed[2] == 'S' &&
         packed[3] == '2');
-
-  Sleb128Decoder<typename ELF::Addr> decoder(packed, 4);
-  decoder.DequeueAll(&packed_words);
-
-  RelocationDeltaCodec<ELF> codec;
-  codec.Decode(packed_words, relocations);
 }
 
 template class RelocationPacker<ELF32_traits>;

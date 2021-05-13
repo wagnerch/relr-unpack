@@ -35,8 +35,7 @@ static void PrintUsage(const char* argv0) {
 
   printf(
       "Usage: %s [-u] [-v] [-p] file\n\n"
-      "Pack or unpack relative relocations in a shared library.\n\n"
-      "  -u, --unpack   unpack previously packed relative relocations\n"
+      "Unpack relative relocations in a shared library.\n\n"
       "  -v, --verbose  trace object file modifications (for debugging)\n"
       "  -p, --pad      do not shrink relocations, but pad (for debugging)\n\n",
       basename);
@@ -47,21 +46,17 @@ static void PrintUsage(const char* argv0) {
 }
 
 int main(int argc, char* argv[]) {
-  bool is_unpacking = false;
   bool is_verbose = false;
   bool is_padding = false;
 
   static const option options[] = {
-    {"unpack", 0, 0, 'u'}, {"verbose", 0, 0, 'v'}, {"pad", 0, 0, 'p'},
+    {"verbose", 0, 0, 'v'}, {"pad", 0, 0, 'p'},
     {"help", 0, 0, 'h'}, {NULL, 0, 0, 0}
   };
   bool has_options = true;
   while (has_options) {
     int c = getopt_long(argc, argv, "uvph", options, NULL);
     switch (c) {
-      case 'u':
-        is_unpacking = true;
-        break;
       case 'v':
         is_verbose = true;
         break;
@@ -120,20 +115,12 @@ int main(int argc, char* argv[]) {
     relocation_packer::ElfFile<ELF32_traits> elf_file(fd);
     elf_file.SetPadding(is_padding);
 
-    if (is_unpacking) {
-      status = elf_file.UnpackRelocations();
-    } else {
-      status = elf_file.PackRelocations();
-    }
+    status = elf_file.UnpackRelocations();
   } else if (e_ident[EI_CLASS] == ELFCLASS64) {
     relocation_packer::ElfFile<ELF64_traits> elf_file(fd);
     elf_file.SetPadding(is_padding);
 
-    if (is_unpacking) {
-      status = elf_file.UnpackRelocations();
-    } else {
-      status = elf_file.PackRelocations();
-    }
+    status = elf_file.UnpackRelocations();
   } else {
     LOG(ERROR) << file << ": unknown ELFCLASS: " << e_ident[EI_CLASS];
     return 1;
