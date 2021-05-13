@@ -25,8 +25,6 @@
 #include "elf_traits.h"
 #include "libelf.h"
 
-#include <android-base/unique_fd.h>
-
 static void PrintUsage(const char* argv0) {
   std::string temporary = argv0;
   const size_t last_slash = temporary.find_last_of("/");
@@ -94,8 +92,8 @@ int main(int argc, char* argv[]) {
   }
 
   const char* file = argv[argc - 1];
-  android::base::unique_fd fd(open(file, O_RDWR));
-  if (fd.get() == -1) {
+  const int fd = open(file, O_RDWR);
+  if (fd == -1) {
     LOG(ERROR) << file << ": " << strerror(errno);
     return 1;
   }
@@ -106,12 +104,12 @@ int main(int argc, char* argv[]) {
   // We need to detect elf class in order to create
   // correct implementation
   uint8_t e_ident[EI_NIDENT];
-  if (TEMP_FAILURE_RETRY(read(fd.get(), e_ident, EI_NIDENT)) != EI_NIDENT) {
+  if (TEMP_FAILURE_RETRY(read(fd, e_ident, EI_NIDENT)) != EI_NIDENT) {
     LOG(ERROR) << file << ": failed to read elf header:" << strerror(errno);
     return 1;
   }
 
-  if (TEMP_FAILURE_RETRY(lseek(fd.get(), 0, SEEK_SET)) != 0) {
+  if (TEMP_FAILURE_RETRY(lseek(fd, 0, SEEK_SET)) != 0) {
     LOG(ERROR) << file << ": lseek to 0 failed:" << strerror(errno);
     return 1;
   }
@@ -119,7 +117,7 @@ int main(int argc, char* argv[]) {
   bool status = false;
 
   if (e_ident[EI_CLASS] == ELFCLASS32) {
-    relocation_packer::ElfFile<ELF32_traits> elf_file(fd.get());
+    relocation_packer::ElfFile<ELF32_traits> elf_file(fd);
     elf_file.SetPadding(is_padding);
 
     if (is_unpacking) {
@@ -128,7 +126,7 @@ int main(int argc, char* argv[]) {
       status = elf_file.PackRelocations();
     }
   } else if (e_ident[EI_CLASS] == ELFCLASS64) {
-    relocation_packer::ElfFile<ELF64_traits> elf_file(fd.get());
+    relocation_packer::ElfFile<ELF64_traits> elf_file(fd);
     elf_file.SetPadding(is_padding);
 
     if (is_unpacking) {
