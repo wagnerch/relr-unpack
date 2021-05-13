@@ -71,13 +71,11 @@ class ElfFile {
                                        ssize_t hole_size,
                                        std::vector<typename ELF::Rela>* relocations);
 
-  static void ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size,
-                            typename ELF::Word new_sh_type, relocations_type_t relocations_type);
+  static void ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size);
 
   static void AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
                                           typename ELF::Off hole_start,
-                                          ssize_t hole_size,
-                                          relocations_type_t relocations_type);
+                                          ssize_t hole_size);
 
   static void ConvertRelArrayToRelaVector(const typename ELF::Rel* rel_array, size_t rel_array_size,
                                           std::vector<typename ELF::Rela>* rela_vector);

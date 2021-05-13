@@ -506,9 +506,7 @@ static Elf_Scn* GetDynamicSection(Elf* elf) {
 template <typename ELF>
 void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
                                                typename ELF::Off hole_start,
-                                               ssize_t hole_size,
-                                               relocations_type_t relocations_type) {
-  CHECK(relocations_type != NONE);
+                                               ssize_t hole_size) {
   Elf_Data* data = GetSectionData(dynamic_section);
 
   auto dynamic_base = reinterpret_cast<typename ELF::Dyn*>(data->d_buf);
@@ -582,9 +580,7 @@ void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
 // up a hole by increasing file offsets that come after the hole.  If smaller
 // than the current size, remove the hole by decreasing those offsets.
 template <typename ELF>
-void ElfFile<ELF>::ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size,
-                                 typename ELF::Word new_sh_type,
-                                 relocations_type_t relocations_type) {
+void ElfFile<ELF>::ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size) {
 
   size_t string_index;
   elf_getshdrstrndx(elf, &string_index);
@@ -608,23 +604,13 @@ void ElfFile<ELF>::ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size,
   const ssize_t hole_size = new_size - data->d_size;
 
   VLOG_IF(1, (hole_size > 0)) << "expand section (" << name << ") size: " <<
-      data->d_size << " -> " << (data->d_size + hole_size);
+      data->d_size << " -> " << new_size;
   VLOG_IF(1, (hole_size < 0)) << "shrink section (" << name << ") size: " <<
-      data->d_size << " -> " << (data->d_size + hole_size);
-
-  // libelf overrides sh_entsize for known sh_types, so it does not matter what we set
-  // for SHT_REL/SHT_RELA.
-  typename ELF::Xword new_entsize =
-      (new_sh_type == SHT_ANDROID_REL || new_sh_type == SHT_ANDROID_RELA) ? 1 : 0;
-
-  VLOG(1) << "Update section (" << name << ") entry size: " <<
-      section_header->sh_entsize << " -> " << new_entsize;
+      data->d_size << " -> " << new_size;
 
   // Resize the data and the section header.
   data->d_size += hole_size;
   section_header->sh_size += hole_size;
-  section_header->sh_entsize = new_entsize;
-  section_header->sh_type = new_sh_type;
 
   // Add the hole size to all offsets in the ELF file that are after the
   // start of the hole.  If the hole size is positive we are expanding the
@@ -642,7 +628,7 @@ void ElfFile<ELF>::ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size,
   RewriteProgramHeadersForHole<ELF>(elf, hole_start, hole_size);
 
   Elf_Scn* dynamic_section = GetDynamicSection<ELF>(elf);
-  AdjustDynamicSectionForHole(dynamic_section, hole_start, hole_size, relocations_type);
+  AdjustDynamicSectionForHole(dynamic_section, hole_start, hole_size);
 }
 
 // Find the first slot in a dynamics array with the given tag.  The array
@@ -767,8 +753,7 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<typename ELF::Relr>&
     NOTREACHED();
   }
 
-  ResizeSection(elf_, relocations_section_, unpacked_bytes,
-      relocations_type_ == REL ? SHT_REL : SHT_RELA, relocations_type_);
+  ResizeSection(elf_, relocations_section_, unpacked_bytes);
   RewriteSectionData(relocations_section_, section_data, unpacked_bytes);
 
   // Rewrite .dynamic to remove two tags describing packed android relocations.
