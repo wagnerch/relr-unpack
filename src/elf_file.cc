@@ -28,15 +28,6 @@ namespace relocation_packer {
 
 // Out-of-band dynamic tags used to indicate the offset and size of the
 // android packed relocations section.
-static constexpr int32_t DT_ANDROID_REL = DT_LOOS + 2;
-static constexpr int32_t DT_ANDROID_RELSZ = DT_LOOS + 3;
-
-static constexpr int32_t DT_ANDROID_RELA = DT_LOOS + 4;
-static constexpr int32_t DT_ANDROID_RELASZ = DT_LOOS + 5;
-
-static constexpr uint32_t SHT_ANDROID_REL = SHT_LOOS + 1;
-static constexpr uint32_t SHT_ANDROID_RELA = SHT_LOOS + 2;
-
 static constexpr int32_t DT_RELRSZ = 35;
 static constexpr int32_t DT_RELR = 36;
 static constexpr int32_t DT_RELRENT = 37;
@@ -206,10 +197,10 @@ bool ElfFile<ELF>::Load() {
     VerboseLogSectionHeader(name, section_header);
 
     // Note relocation section types.
-    if (section_header->sh_type == SHT_REL || section_header->sh_type == SHT_ANDROID_REL) {
+    if (section_header->sh_type == SHT_REL) {
       has_rel_relocations = true;
     }
-    if (section_header->sh_type == SHT_RELA || section_header->sh_type == SHT_ANDROID_RELA) {
+    if (section_header->sh_type == SHT_RELA) {
       has_rela_relocations = true;
     }
 
@@ -543,9 +534,7 @@ void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
                                 tag == DT_FINI_ARRAY ||
                                 tag == DT_VERSYM ||
                                 tag == DT_VERNEED ||
-                                tag == DT_VERDEF ||
-                                tag == DT_ANDROID_REL||
-                                tag == DT_ANDROID_RELA);
+                                tag == DT_VERDEF);
 
     if (is_adjustable && dynamic->d_un.d_ptr <= hole_start) {
       dynamic->d_un.d_ptr -= hole_size;
@@ -556,7 +545,7 @@ void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
 
     // DT_RELSZ or DT_RELASZ indicate the overall size of relocations.
     // Only one will be present.  Adjust by hole size.
-    if (tag == DT_RELSZ || tag == DT_RELASZ || tag == DT_ANDROID_RELSZ || tag == DT_ANDROID_RELASZ) {
+    if (tag == DT_RELSZ || tag == DT_RELASZ) {
       dynamic->d_un.d_val += hole_size;
       VLOG(1) << "dynamic[" << i << "] " << dynamic->d_tag
               << " d_val adjusted to " << dynamic->d_un.d_val;
@@ -722,7 +711,7 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<typename ELF::Relr>&
 
   LOG(INFO) << "Relocations      : " << relocations.size() << " entries";
 
-  const size_t packed_bytes = relocations.size() * sizeof(relocations[0]);
+  const size_t packed_bytes = (relocations.size() * sizeof(relocations[0])) + data->d_size;
   RelocationPacker<ELF> packer;
   packer.UnpackRelocations(packed, &relocations);
 
