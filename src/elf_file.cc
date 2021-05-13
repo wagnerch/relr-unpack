@@ -758,27 +758,37 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<typename ELF::Relr>&
   std::vector<typename ELF::Dyn> dynamics(
       dynamic_base,
       dynamic_base + data->d_size / sizeof(dynamics[0]));
-  // TODO: not needed, but we should remove DT_RELR, DT_RELRSZ, DT_RELRENT
-#if 0
   {
-    typename ELF::Dyn dyn;
-    dyn.d_tag = relocations_type_ == REL ? DT_REL : DT_RELA;
-    dyn.d_un.d_ptr = section_header->sh_addr;
-    ReplaceDynamicEntry<ELF>(relocations_type_ == REL ? DT_ANDROID_REL : DT_ANDROID_RELA,
-        dyn, &dynamics);
-  }
+    const typename ELF::Sword tag = DT_RELRSZ;
+    const size_t slot = FindDynamicEntry<ELF>(tag, &dynamics);
+    if (slot == dynamics.size()) {
+      LOG(FATAL) << "Dynamic slot is not found for tag=" << tag;
+    }
 
-  {
-    typename ELF::Dyn dyn;
-    dyn.d_tag = relocations_type_ == REL ? DT_RELSZ : DT_RELASZ;
-    dyn.d_un.d_val = section_header->sh_size;
-    ReplaceDynamicEntry<ELF>(relocations_type_ == REL ? DT_ANDROID_RELSZ : DT_ANDROID_RELASZ,
-        dyn, &dynamics);
+    dynamics.erase(dynamics.begin() + slot);
   }
-#endif
+  {
+    const typename ELF::Sword tag = DT_RELR;
+    const size_t slot = FindDynamicEntry<ELF>(tag, &dynamics);
+    if (slot == dynamics.size()) {
+      LOG(FATAL) << "Dynamic slot is not found for tag=" << tag;
+    }
+
+    dynamics.erase(dynamics.begin() + slot);
+  }
+  {
+    const typename ELF::Sword tag = DT_RELRENT;
+    const size_t slot = FindDynamicEntry<ELF>(tag, &dynamics);
+    if (slot == dynamics.size()) {
+      LOG(FATAL) << "Dynamic slot is not found for tag=" << tag;
+    }
+
+    dynamics.erase(dynamics.begin() + slot);
+  }
 
   const void* dynamics_data = &dynamics[0];
   const size_t dynamics_bytes = dynamics.size() * sizeof(dynamics[0]);
+  ResizeSection(elf_, dynamic_section_, dynamics_bytes);
   RewriteSectionData(dynamic_section_, dynamics_data, dynamics_bytes);
 
   Flush();
