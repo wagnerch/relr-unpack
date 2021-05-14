@@ -15,15 +15,36 @@ namespace relocation_packer {
 // representation.
 template <typename ELF>
 void RelocationPacker<ELF>::UnpackRelocations(
-    const std::vector<uint8_t>& packed,
+    const std::vector<typename ELF::Relr>& packed,
     std::vector<typename ELF::Rela>* relocations) {
 
-  std::vector<typename ELF::Addr> packed_words;
-  CHECK(packed.size() > 4 &&
-        packed[0] == 'A' &&
-        packed[1] == 'P' &&
-        packed[2] == 'S' &&
-        packed[3] == '2');
+  typename ELF::Addr base = 0;
+  for (unsigned int i=0; i < packed.size(); i++) {
+    typename ELF::Relr entry = packed.at(i);
+    if ((entry & 1) == 0) {
+      typename ELF::Rela relocation;
+      relocation.r_offset = entry;
+      relocation.r_info = R_ARM_RELATIVE;
+      relocation.r_addend = 0;
+      relocations->push_back(relocation);
+      base = entry + sizeof(typename ELF::Addr);
+      continue;
+    }
+
+    typename ELF::Addr offset = base;
+    while (entry != 0) {
+      entry >>= 1;
+      if ((entry & 1) != 0) {
+        typename ELF::Rela relocation;
+        relocation.r_offset = offset;
+        relocation.r_info = R_ARM_RELATIVE;
+        relocation.r_addend = 0;
+        relocations->push_back(relocation);
+      }
+      offset += sizeof(typename ELF::Addr);
+    }
+    base += (8 * sizeof(typename ELF::Addr) - 1) * sizeof(typename ELF::Addr);
+  }
 }
 
 template class RelocationPacker<ELF32_traits>;

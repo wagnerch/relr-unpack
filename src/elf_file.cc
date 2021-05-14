@@ -37,6 +37,12 @@ static constexpr int32_t DT_ANDROID_RELASZ = DT_LOOS + 5;
 static constexpr uint32_t SHT_ANDROID_REL = SHT_LOOS + 1;
 static constexpr uint32_t SHT_ANDROID_RELA = SHT_LOOS + 2;
 
+static constexpr int32_t DT_RELRSZ = 35;
+static constexpr int32_t DT_RELR = 36;
+static constexpr int32_t DT_RELRENT = 37;
+
+static constexpr uint32_t SHT_RELR = 19;
+
 static const size_t kPageSize = 4096;
 
 // Alignment to preserve, in bytes.  This must be at least as large as the
@@ -192,7 +198,6 @@ bool ElfFile<ELF>::Load() {
   // these; both is unsupported.
   bool has_rel_relocations = false;
   bool has_rela_relocations = false;
-  bool has_android_relocations = false;
 
   Elf_Scn* section = NULL;
   while ((section = elf_nextscn(elf, section)) != nullptr) {
@@ -212,11 +217,9 @@ bool ElfFile<ELF>::Load() {
     if ((name == ".rel.dyn" || name == ".rela.dyn") &&
         section_header->sh_size > 0) {
       found_relocations_section = section;
-
-      // Note if relocation section is already packed
-      has_android_relocations =
-          section_header->sh_type == SHT_ANDROID_REL ||
-          section_header->sh_type == SHT_ANDROID_RELA;
+    }
+    if (section_header->sh_type == SHT_RELR) {
+      relr_section_ = section;
     }
 
     if (section_header->sh_offset == dynamic_program_header->p_offset) {
@@ -252,11 +255,15 @@ bool ElfFile<ELF>::Load() {
     }
   }
 
+  if (!relr_section_) {
+    LOG(ERROR) << "Missing .relr.dyn section";
+    return false;
+  }
+
   elf_ = elf;
   relocations_section_ = found_relocations_section;
   dynamic_section_ = found_dynamic_section;
   relocations_type_ = has_rel_relocations ? REL : RELA;
-  has_android_relocations_ = has_android_relocations;
   return true;
 }
 
@@ -686,50 +693,53 @@ bool ElfFile<ELF>::UnpackRelocations() {
     return true;
   }
 
-  typename ELF::Shdr* section_header = ELF::getshdr(relocations_section_);
   // Retrieve the current packed android relocations section data.
-  Elf_Data* data = GetSectionData(relocations_section_);
+  Elf_Data* data = GetSectionData(relr_section_);
 
   // Convert data to a vector of bytes.
-  const uint8_t* packed_base = reinterpret_cast<uint8_t*>(data->d_buf);
-  std::vector<uint8_t> packed(
+  const typename ELF::Relr* packed_base = reinterpret_cast<typename ELF::Relr*>(data->d_buf);
+  std::vector<typename ELF::Relr> packed(
       packed_base,
       packed_base + data->d_size / sizeof(packed[0]));
-
-  if ((section_header->sh_type == SHT_ANDROID_RELA || section_header->sh_type == SHT_ANDROID_REL) &&
-      packed.size() > 3 &&
-      packed[0] == 'A' &&
-      packed[1] == 'P' &&
-      packed[2] == 'S' &&
-      packed[3] == '2') {
-    LOG(INFO) << "Relocations   : " << (relocations_type_ == REL ? "REL" : "RELA");
-  } else {
-    LOG(ERROR) << "Packed relocations not found (not packed?)";
-    return false;
-  }
 
   return UnpackTypedRelocations(packed);
 }
 
 // Helper for UnpackRelocations().  Rel type is one of ELF::Rel or ELF::Rela.
 template <typename ELF>
-bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<uint8_t>& packed) {
-  // Unpack the data to re-materialize the relative relocations.
-  const size_t packed_bytes = packed.size() * sizeof(packed[0]);
-  LOG(INFO) << "Packed           : " << packed_bytes << " bytes";
-  std::vector<typename ELF::Rela> unpacked_relocations;
-  RelocationPacker<ELF> packer;
-  packer.UnpackRelocations(packed, &unpacked_relocations);
-
-  const size_t relocation_entry_size =
-      relocations_type_ == REL ? sizeof(typename ELF::Rel) : sizeof(typename ELF::Rela);
-  const size_t unpacked_bytes = unpacked_relocations.size() * relocation_entry_size;
-  LOG(INFO) << "Unpacked         : " << unpacked_bytes << " bytes";
-
+bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<typename ELF::Relr>& packed) {
   // Retrieve the current dynamic relocations section data.
   Elf_Data* data = GetSectionData(relocations_section_);
 
-  LOG(INFO) << "Relocations      : " << unpacked_relocations.size() << " entries";
+  std::vector<typename ELF::Rela> relocations;
+  if (relocations_type_ == REL) {
+    // Convert data to a vector of relocations.
+    const typename ELF::Rel* relocations_base = reinterpret_cast<typename ELF::Rel*>(data->d_buf);
+    ConvertRelArrayToRelaVector(relocations_base,
+        data->d_size / sizeof(typename ELF::Rel), &relocations);
+  } else if (relocations_type_ == RELA) {
+    // Convert data to a vector of relocations with addends.
+    const typename ELF::Rela* relocations_base = reinterpret_cast<typename ELF::Rela*>(data->d_buf);
+    relocations = std::vector<typename ELF::Rela>(
+        relocations_base,
+        relocations_base + data->d_size / sizeof(relocations[0]));
+  } else {
+    NOTREACHED();
+  }
+
+  LOG(INFO) << "Relocations      : " << relocations.size() << " entries";
+
+  const size_t packed_bytes = relocations.size() * sizeof(relocations[0]);
+  RelocationPacker<ELF> packer;
+  packer.UnpackRelocations(packed, &relocations);
+
+  // Unpack the data to re-materialize the relative relocations.
+  LOG(INFO) << "Packed           : " << packed_bytes << " bytes";
+
+  const size_t relocation_entry_size =
+      relocations_type_ == REL ? sizeof(typename ELF::Rel) : sizeof(typename ELF::Rela);
+  const size_t unpacked_bytes = relocations.size() * relocation_entry_size;
+  LOG(INFO) << "Unpacked         : " << unpacked_bytes << " bytes";
 
   // If we found the same number of null relocation entries in the dynamic
   // relocations section as we hold as unpacked relative relocations, then
@@ -739,7 +749,6 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<uint8_t>& packed) {
 
   // Unless padded, pre-apply relative relocations to account for the
   // hole, and pre-adjust all relocation offsets accordingly.
-  typename ELF::Shdr* section_header = ELF::getshdr(relocations_section_);
 
   if (!is_padded) {
     LOG(INFO) << "Expansion     : " << unpacked_bytes - packed_bytes << " bytes";
@@ -748,12 +757,12 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<uint8_t>& packed) {
   // Rewrite the current dynamic relocations section with unpacked version of
   // relocations.
   const void* section_data = nullptr;
-  std::vector<typename ELF::Rel> unpacked_rel_relocations;
   if (relocations_type_ == RELA) {
-    section_data = &unpacked_relocations[0];
+    section_data = &relocations[0];
   } else if (relocations_type_ == REL) {
-    ConvertRelaVectorToRelVector(unpacked_relocations, &unpacked_rel_relocations);
-    section_data = &unpacked_rel_relocations[0];
+    std::vector<typename ELF::Rel> rel_relocations;
+    ConvertRelaVectorToRelVector(relocations, &rel_relocations);
+    section_data = &rel_relocations[0];
   } else {
     NOTREACHED();
   }
@@ -768,6 +777,8 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<uint8_t>& packed) {
   std::vector<typename ELF::Dyn> dynamics(
       dynamic_base,
       dynamic_base + data->d_size / sizeof(dynamics[0]));
+  // TODO: not needed, but we should remove DT_RELR, DT_RELRSZ, DT_RELRENT
+#if 0
   {
     typename ELF::Dyn dyn;
     dyn.d_tag = relocations_type_ == REL ? DT_REL : DT_RELA;
@@ -783,6 +794,7 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<uint8_t>& packed) {
     ReplaceDynamicEntry<ELF>(relocations_type_ == REL ? DT_ANDROID_RELSZ : DT_ANDROID_RELASZ,
         dyn, &dynamics);
   }
+#endif
 
   const void* dynamics_data = &dynamics[0];
   const size_t dynamics_bytes = dynamics.size() * sizeof(dynamics[0]);

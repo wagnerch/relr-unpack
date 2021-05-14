@@ -22,7 +22,7 @@ class RelocationPacker {
   // Unpack relocations from their more compact form.
   // |packed| is the vector of packed relocations.
   // |relocations| is a vector of unpacked relocation structs.
-  static void UnpackRelocations(const std::vector<uint8_t>& packed,
+  static void UnpackRelocations(const std::vector<typename ELF::Relr>& packed,
                                 std::vector<typename ELF::Rela>* relocations);
 };
 

@@ -32,6 +32,7 @@ struct ELF32_traits {
   typedef Elf32_Word Word;
   typedef Elf32_Xword Xword;
   typedef Elf32_Half Half;
+  typedef Elf32_Addr Relr;
 
   static inline Ehdr* getehdr(Elf* elf) { return elf32_getehdr(elf); }
   static inline Phdr* getphdr(Elf* elf) { return elf32_getphdr(elf); }
@@ -56,6 +57,7 @@ struct ELF64_traits {
   typedef Elf64_Word Word;
   typedef Elf64_Xword Xword;
   typedef Elf64_Half Half;
+  typedef Elf64_Addr Relr;
 
   static inline Ehdr* getehdr(Elf* elf) { return elf64_getehdr(elf); }
   static inline Phdr* getphdr(Elf* elf) { return elf64_getphdr(elf); }

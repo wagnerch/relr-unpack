@@ -35,8 +35,8 @@ class ElfFile {
  public:
   explicit ElfFile(int fd)
       : fd_(fd), is_padding_relocations_(false), elf_(NULL),
-        relocations_section_(NULL), dynamic_section_(NULL),
-        relocations_type_(NONE), has_android_relocations_(false) {}
+        relocations_section_(NULL), relr_section_(NULL), dynamic_section_(NULL),
+        relocations_type_(NONE) {}
   ~ElfFile() {}
 
   // Set padding mode.  When padding, PackRelocations() will not shrink
@@ -62,7 +62,7 @@ class ElfFile {
 
   // Templated unpacker, helper for UnpackRelocations().  Rel type is one of
   // ELF::Rel or ELF::Rela.
-  bool UnpackTypedRelocations(const std::vector<uint8_t>& packed);
+  bool UnpackTypedRelocations(const std::vector<typename ELF::Relr>& packed);
 
   // Write ELF file changes.
   void Flush();
@@ -98,13 +98,11 @@ class ElfFile {
 
   // Sections that we manipulate, assigned by Load().
   Elf_Scn* relocations_section_;
+  Elf_Scn* relr_section_;
   Elf_Scn* dynamic_section_;
 
   // Relocation type found, assigned by Load().
   relocations_type_t relocations_type_;
-
-  // Elf-file has android relocations section
-  bool has_android_relocations_;
 };
 
 }  // namespace relocation_packer
