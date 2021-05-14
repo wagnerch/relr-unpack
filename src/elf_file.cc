@@ -55,7 +55,7 @@ static Elf_Data* GetSectionData(Elf_Scn* section) {
 
 // Rewrite section data.  Allocates new data and makes it the data element's
 // buffer.  Relies on program exit to free allocated data.
-static void RewriteSectionData(Elf_Scn* section,
+static void SetSectionData(Elf_Scn* section,
                                const void* section_data,
                                size_t size) {
   Elf_Data* data = GetSectionData(section);
@@ -484,7 +484,7 @@ void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
 
   void* section_data = &dynamics[0];
   size_t bytes = dynamics.size() * sizeof(dynamics[0]);
-  RewriteSectionData(dynamic_section, section_data, bytes);
+  SetSectionData(dynamic_section, section_data, bytes);
 }
 
 // Resize a section.  If the new size is larger than the current size, open
@@ -665,7 +665,7 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<typename ELF::Relr>&
   }
 
   ResizeSection(elf_, relocations_section_, unpacked_bytes);
-  RewriteSectionData(relocations_section_, section_data, unpacked_bytes);
+  SetSectionData(relocations_section_, section_data, unpacked_bytes);
 
   // Rewrite .dynamic to remove two tags describing packed android relocations.
   data = GetSectionData(dynamic_section_);
@@ -704,7 +704,7 @@ bool ElfFile<ELF>::UnpackTypedRelocations(const std::vector<typename ELF::Relr>&
   const void* dynamics_data = &dynamics[0];
   const size_t dynamics_bytes = dynamics.size() * sizeof(dynamics[0]);
   ResizeSection(elf_, dynamic_section_, dynamics_bytes);
-  RewriteSectionData(dynamic_section_, dynamics_data, dynamics_bytes);
+  SetSectionData(dynamic_section_, dynamics_data, dynamics_bytes);
 
   Flush();
   return true;
