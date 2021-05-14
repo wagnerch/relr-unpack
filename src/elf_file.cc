@@ -299,10 +299,12 @@ static void AdjustSectionHeadersForHole(Elf* elf,
       section_header->sh_offset += hole_size;
       VLOG(1) << "section " << name
               << " sh_offset adjusted to " << section_header->sh_offset;
+#if 0 // not sure this makes sense
     } else {
       section_header->sh_addr -= hole_size;
       VLOG(1) << "section " << name
               << " sh_addr adjusted to " << section_header->sh_addr;
+#endif
     }
   }
 }
@@ -375,7 +377,6 @@ static void AdjustProgramHeaderFields(typename ELF::Phdr* program_headers,
                                       size_t count,
                                       typename ELF::Off hole_start,
                                       ssize_t hole_size) {
-  int alignment_changes = 0;
   for (size_t i = 0; i < count; ++i) {
     typename ELF::Phdr* program_header = &program_headers[i];
 
@@ -391,7 +392,10 @@ static void AdjustProgramHeaderFields(typename ELF::Phdr* program_headers,
       program_header->p_offset += hole_size;
       VLOG(1) << "phdr[" << i
               << "] p_offset adjusted to "<< program_header->p_offset;
+#if 0 // not sure this makes sense
     } else {
+      int alignment_changes = 0;
+
       program_header->p_vaddr -= hole_size;
       program_header->p_paddr -= hole_size;
 
@@ -412,6 +416,7 @@ static void AdjustProgramHeaderFields(typename ELF::Phdr* program_headers,
               << "] p_vaddr adjusted to "<< program_header->p_vaddr
               << "; p_paddr adjusted to "<< program_header->p_paddr
               << "; p_align adjusted to "<< program_header->p_align;
+#endif
     }
   }
 }
@@ -522,6 +527,7 @@ void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
     typename ELF::Dyn* dynamic = &dynamics[i];
     const typename ELF::Sword tag = dynamic->d_tag;
 
+#if 0 // not sure this makes sense
     // Any tags that hold offsets are adjustment candidates.
     const bool is_adjustable = (tag == DT_PLTGOT ||
                                 tag == DT_HASH ||
@@ -546,6 +552,7 @@ void ElfFile<ELF>::AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
       VLOG(1) << "dynamic[" << i << "] " << dynamic->d_tag
               << " d_ptr adjusted to " << dynamic->d_un.d_ptr;
     }
+#endif
 
     // DT_RELSZ or DT_RELASZ indicate the overall size of relocations.
     // Only one will be present.  Adjust by hole size.
