@@ -34,16 +34,10 @@ template <typename ELF>
 class ElfFile {
  public:
   explicit ElfFile(int fd)
-      : fd_(fd), is_padding_relocations_(false), elf_(NULL),
+      : fd_(fd), elf_(NULL),
         relocations_section_(NULL), relr_section_(NULL), dynamic_section_(NULL),
         relocations_type_(NONE) {}
   ~ElfFile() {}
-
-  // Set padding mode.  When padding, PackRelocations() will not shrink
-  // the .rel.dyn or .rela.dyn section, but instead replace relative with
-  // NONE-type entries.
-  // |flag| is true to pad .rel.dyn or .rela.dyn, false to shrink it.
-  inline void SetPadding(bool flag) { is_padding_relocations_ = flag; }
 
   // Transfer relative relocations from a packed representation in
   // .android.rel.dyn or .android.rela.dyn to .rel.dyn or .rela.dyn.  Returns
@@ -67,10 +61,6 @@ class ElfFile {
   // Write ELF file changes.
   void Flush();
 
-  void AdjustRelativeRelocationTargets(typename ELF::Off hole_start,
-                                       ssize_t hole_size,
-                                       std::vector<typename ELF::Rela>* relocations);
-
   static void ResizeSection(Elf* elf, Elf_Scn* section, size_t new_size);
 
   static void AdjustDynamicSectionForHole(Elf_Scn* dynamic_section,
@@ -86,10 +76,6 @@ class ElfFile {
 
   // File descriptor opened on the shared object.
   int fd_;
-
-  // If set, pad rather than shrink .rel.dyn or .rela.dyn.  Primarily for
-  // debugging, allows packing to be checked without affecting load addresses.
-  bool is_padding_relocations_;
 
   // Libelf handle, assigned by Load().
   Elf* elf_;
